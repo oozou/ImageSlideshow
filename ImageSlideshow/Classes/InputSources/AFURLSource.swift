@@ -8,6 +8,7 @@
 import AFNetworking
 
 /// Input Source to image using AFNetworking
+@objcMembers
 public class AFURLSource: NSObject, InputSource {
     /// url to load
     public var url: URL
@@ -41,7 +42,11 @@ public class AFURLSource: NSObject, InputSource {
         imageView.setImageWith(URLRequest(url: url), placeholderImage: self.placeholder, success: { (_, _, image: UIImage) in
             callback(image)
         }, failure: { _, _, _ in
-            callback(nil)
+            callback(self.placeholder)
         })
+    }
+    
+    public func cancelLoad(on imageView: UIImageView) {
+        imageView.cancelImageDownloadTask()
     }
 }

@@ -42,6 +42,7 @@ public enum ImagePreload {
 }
 
 /// Main view containing the Image Slideshow
+@objcMembers
 open class ImageSlideshow: UIView {
 
     /// Scroll View to wrap the slideshow
@@ -69,8 +70,6 @@ open class ImageSlideshow: UIView {
     /// Current page
     open fileprivate(set) var currentPage: Int = 0 {
         didSet {
-            pageControl.currentPage = currentPage
-
             if oldValue != currentPage {
                 currentPageChanged?(currentPage)
             }
@@ -85,6 +84,9 @@ open class ImageSlideshow: UIView {
 
     /// Called on scrollViewDidEndDecelerating
     open var didEndDecelerating: (() -> ())?
+    
+    /// Customize bottom padding
+    open fileprivate(set) var bottomPadding: CGFloat = 12.0
 
     /// Currenlty displayed slideshow item
     open var currentSlideshowItem: ImageSlideshowItem? {
@@ -128,6 +130,13 @@ open class ImageSlideshow: UIView {
             self.reloadScrollView()
         }
     }
+    
+    /// Maximum zoom scale
+    open var maximumScale: CGFloat = 2.0 {
+        didSet {
+            self.reloadScrollView()
+        }
+    }
 
     /// Image change interval, zero stops the auto-scrolling
     open var slideshowInterval = 0.0 {
@@ -155,6 +164,10 @@ open class ImageSlideshow: UIView {
 
     /// Transitioning delegate to manage the transition to full screen controller
     open fileprivate(set) var slideshowTransitioningDelegate: ZoomAnimatedTransitioningDelegate?
+    
+    var primaryVisiblePage: Int {
+        return scrollView.frame.size.width > 0 ? Int(scrollView.contentOffset.x + scrollView.frame.size.width / 2) / Int(scrollView.frame.size.width) : 0
+    }
 
     // MARK: - Life cycle
 
@@ -184,6 +197,9 @@ open class ImageSlideshow: UIView {
         scrollView.showsHorizontalScrollIndicator = false
         scrollView.showsVerticalScrollIndicator = false
         scrollView.autoresizingMask = self.autoresizingMask
+        if #available(iOS 11.0, *) {
+            scrollView.contentInsetAdjustmentBehavior = .never
+        }
         addSubview(scrollView)
 
         addSubview(pageControl)
@@ -215,8 +231,13 @@ open class ImageSlideshow: UIView {
             pageControl.isHidden = self.images.count < 2
         }
 
+        var pageControlBottomInset: CGFloat = bottomPadding
+        if #available(iOS 11.0, *) {
+            pageControlBottomInset += self.safeAreaInsets.bottom
+        }
+
         pageControl.frame = CGRect(x: 0, y: 0, width: frame.size.width, height: 10)
-        pageControl.center = CGPoint(x: frame.size.width / 2, y: frame.size.height - 31.0)
+        pageControl.center = CGPoint(x: frame.size.width / 2, y: frame.size.height - pageControlBottomInset)
     }
 
     /// updates frame of the scroll view and its inner items
@@ -245,7 +266,7 @@ open class ImageSlideshow: UIView {
 
         var i = 0
         for image in scrollViewImages {
-            let item = ImageSlideshowItem(image: image, zoomEnabled: self.zoomEnabled, activityIndicator: self.activityIndicator?.create())
+            let item = ImageSlideshowItem(image: image, zoomEnabled: self.zoomEnabled, activityIndicator: self.activityIndicator?.create(), maximumScale: maximumScale)
             item.imageView.contentMode = self.contentScaleMode
             slideshowItems.append(item)
             scrollView.addSubview(item)
@@ -348,8 +369,8 @@ open class ImageSlideshow: UIView {
         }
     }
 
-    func slideshowTick(_ timer: Timer) {
-        let page = Int(scrollView.contentOffset.x / scrollView.frame.size.width)
+    @objc func slideshowTick(_ timer: Timer) {
+        let page = scrollView.frame.size.width > 0 ? Int(scrollView.contentOffset.x / scrollView.frame.size.width) : 0
         var nextPage = page + 1
 
         if !circular && page == scrollViewImages.count - 1 {
@@ -371,19 +392,22 @@ open class ImageSlideshow: UIView {
             loadImages(for: page)
         }
         scrollViewPage = page
-
+        currentPage = currentPageForScrollViewPage(page)
+    }
+    
+    fileprivate func currentPageForScrollViewPage(_ page: Int) -> Int {
         if circular {
             if page == 0 {
                 // first page contains the last image
-                currentPage = Int(images.count) - 1
+                return Int(images.count) - 1
             } else if page == scrollViewImages.count - 1 {
                 // last page contains the first image
-                currentPage = 0
+                return 0
             } else {
-                currentPage = page - 1
+                return page - 1
             }
         } else {
-            currentPage = page
+            return page
         }
     }
 
@@ -447,8 +471,7 @@ extension ImageSlideshow: UIScrollViewDelegate {
     }
 
     open func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
-        let page = Int(scrollView.contentOffset.x) / Int(scrollView.frame.size.width)
-        setCurrentPageForScrollViewPage(page)
+        setCurrentPageForScrollViewPage(primaryVisiblePage)
         didEndDecelerating?()
     }
 
@@ -462,5 +485,7 @@ extension ImageSlideshow: UIScrollViewDelegate {
                 scrollView.contentOffset = CGPoint(x: scrollView.contentOffset.x + regularContentOffset, y: 0)
             }
         }
+
+        pageControl.currentPage = currentPageForScrollViewPage(primaryVisiblePage)
     }
 }
