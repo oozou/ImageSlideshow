@@ -86,7 +86,7 @@ open class ImageSlideshow: UIView {
     open var didEndDecelerating: (() -> ())?
     
     /// Customize bottom padding
-    open fileprivate(set) var bottomPadding: CGFloat = 12.0
+    open var bottomPadding: CGFloat = 12.0
 
     /// Currenlty displayed slideshow item
     open var currentSlideshowItem: ImageSlideshowItem? {
